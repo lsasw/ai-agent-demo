@@ -6,6 +6,7 @@ import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentRetriever;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentTransformerOptions;
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentTransformer;
+import com.demo.saa.rag.config.RagConfig;
 import com.demo.saa.rag.config.RagProperties;
 import com.github.benmanes.caffeine.cache.Cache;
 import org.slf4j.Logger;
@@ -40,6 +41,7 @@ public class CustomerServiceRagService {
     private final DashScopeApi dashScopeApi;
     private final ChatModel chatModel;
     private final RagProperties properties;
+    private final RagConfig ragConfig;
     private final Cache<String, List<Document>> retrievalCache;
 
     /** 总查询次数 */
@@ -60,12 +62,14 @@ public class CustomerServiceRagService {
             DashScopeApi dashScopeApi,
             ChatModel chatModel,
             RagProperties properties,
+            RagConfig ragConfig,
             Cache<String, List<Document>> retrievalCache) {
         this.retriever = retriever;
         this.cloudStore = cloudStore;
         this.dashScopeApi = dashScopeApi;
         this.chatModel = chatModel;
         this.properties = properties;
+        this.ragConfig = ragConfig;
         this.retrievalCache = retrievalCache;
     }
 
@@ -237,6 +241,10 @@ public class CustomerServiceRagService {
      * 上传文档并入库到 DashScope 云端向量存储，以细/标准/粗三种粒度同时索引。
      */
     public DocumentMeta uploadDocument(String text, String title, String category) {
+        if (!ragConfig.isPipelineReady()) {
+            throw new IllegalStateException("DashScope Pipeline 未就绪，无法上传文档。"
+                    + "请在 DashScope 控制台创建 Pipeline: https://dashscope.console.aliyun.com/rag");
+        }
         Document doc = new Document(text, Map.of(
                 "title", title, "category", category,
                 "upload_time", String.valueOf(System.currentTimeMillis())));
