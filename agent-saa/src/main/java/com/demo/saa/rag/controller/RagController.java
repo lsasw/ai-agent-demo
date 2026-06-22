@@ -1,6 +1,7 @@
 package com.demo.saa.rag.controller;
 
 import com.demo.saa.rag.service.CustomerServiceRagService;
+import com.demo.saa.rag.service.DocumentCrawlerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -29,9 +30,11 @@ public class RagController {
 
     private static final Logger log = LoggerFactory.getLogger(RagController.class);
     private final CustomerServiceRagService ragService;
+    private final DocumentCrawlerService crawlerService;
 
-    public RagController(CustomerServiceRagService ragService) {
+    public RagController(CustomerServiceRagService ragService, DocumentCrawlerService crawlerService) {
         this.ragService = ragService;
+        this.crawlerService = crawlerService;
     }
 
     // ──────────────────────── 对话 ────────────────────────
@@ -168,6 +171,16 @@ public class RagController {
     /**
      * 健康检查接口。
      */
+    @PostMapping("/docs/crawl")
+    @Operation(summary = "全量爬取 Claude Code 中文文档",
+               description = "从 code.claude.com/docs/zh-CN/ 爬取 35 篇核心中文文档全文，自动提取正文并批量入库 DashScope。耗时约 1-2 分钟。")
+    @ApiResponse(responseCode = "200", description = "爬取完成，返回各页面的入库结果")
+    public ResponseEntity<Map<String, Object>> crawlDocs() {
+        log.info("Starting full crawl of Claude Code zh-CN docs...");
+        Map<String, Object> result = crawlerService.crawlAll();
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/health")
     @Operation(summary = "服务健康检查", description = "检查 RAG 智能客服服务是否正常运行。")
     @ApiResponse(responseCode = "200", description = "服务正常")
