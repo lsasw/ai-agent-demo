@@ -1,0 +1,46 @@
+# Maven
+target/
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Build
+build/
+out/
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Firecrawl cache
+.firecrawl/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Maven wrapper
+!.mvn/wrapper/maven-wrapper.jar

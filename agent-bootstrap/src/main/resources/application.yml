@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: ai-agent-demo
+  ai:
+    dashscope:
+      api-key: ${AI_DASHSCOPE_API_KEY:${DASHSCOPE_API_KEY:}}
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.demo: DEBUG
+    com.alibaba.cloud.ai: INFO
+    io.agentscope: INFO
+
+# ==================== RAG 智能客服配置 ====================
+rag:
+  index-name: cc-customer-service
+  # 混合检索参数
+  dense-top-k: 5
+  sparse-top-k: 3
+  enable-rewrite: true
+  rewrite-model: qwen-plus
+  enable-rerank: true
+  rerank-model: gte-rerank
+  rerank-min-score: 0.35
+  rerank-top-n: 3
+  # 文档切片参数
+  chunk-size: 800
+  overlap-size: 100
+  fine-chunk-size: 400
+  coarse-chunk-size: 1200
+  # 查询增强
+  enable-query-expansion: true
+  # 缓存参数
+  cache-ttl-minutes: 10
+  max-cache-size: 1000
+  # 连接参数
+  connect-timeout-seconds: 5
+  read-timeout-seconds: 30
