@@ -1,8 +1,22 @@
 package com.demo.common.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+/**
+ * 客服对话请求 DTO。
+ *
+ * @author dmw
+ * @since 2026-06-22
+ */
+@Schema(description = "客服对话请求")
 public class ChatRequest {
+
+    @Schema(description = "用户提问内容", example = "Claude Code 如何安装？", requiredMode = Schema.RequiredMode.REQUIRED)
     private String message;
-    private String agentType; // "saa" 或 "agentscope"
+
+    @Schema(description = "框架选择：saa（Spring AI Alibaba）或 agentscope（AgentScope-Java）",
+            example = "saa", allowableValues = {"saa", "agentscope"})
+    private String agentType;
 
     public ChatRequest() {}
 

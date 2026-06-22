@@ -9,6 +9,8 @@ import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.tool.Toolkit;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.web.bind.annotation.*;
@@ -17,10 +19,11 @@ import java.util.Map;
 
 /**
  * REST 对比测试入口，同时跑通 SAA ReactAgent 和 AgentScope ReActAgent。
- * 注意：两个框架都有 DashScopeChatModel，通过 import 别名解决冲突。
+ * 注意：两个框架都有 DashScopeChatModel，必须通过全限定名区分。
  */
 @RestController
 @RequestMapping("/api/demo")
+@Tag(name = "框架对比测试", description = "Spring AI Alibaba 与 AgentScope-Java 双框架对比接口")
 public class DemoController {
 
     private final String apiKey;
@@ -38,6 +41,8 @@ public class DemoController {
     }
 
     @PostMapping("/chat")
+    @Operation(summary = "双框架对话测试",
+               description = "根据 agentType 选择 SAA ReactAgent 或 AgentScope ReActAgent 回答用户问题。")
     public Map<String, Object> chat(@RequestBody ChatRequest request) {
         if (apiKey == null) {
             return Map.of("error", "请设置环境变量 AI_DASHSCOPE_API_KEY 或 DASHSCOPE_API_KEY");
@@ -61,13 +66,11 @@ public class DemoController {
             DashScopeApi api = DashScopeApi.builder().apiKey(apiKey).build();
             ChatModel chatModel = com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel.builder()
                 .dashScopeApi(api).build();
-
             ReactAgent agent = ReactAgent.builder()
                 .name("assistant")
                 .model(chatModel)
                 .instruction("你是一个有帮助的 AI 助手，请用中文回答。")
                 .build();
-
             AssistantMessage response = agent.call(message);
             return response.getText();
         } catch (Exception e) {
@@ -78,7 +81,6 @@ public class DemoController {
     private String callAgentScope(String message) {
         try {
             WeatherTool weatherTool = new WeatherTool();
-
             Toolkit toolkit = new Toolkit();
             toolkit.registerTool(new Object() {
                 @io.agentscope.core.tool.Tool(name = "get_weather", description = "获取指定城市的天气信息")
@@ -101,9 +103,7 @@ public class DemoController {
             Msg response = agent.call(Msg.builder()
                 .role(MsgRole.USER)
                 .content(TextBlock.builder().text(message).build())
-                .build()
-            ).block();
-
+                .build()).block();
             return response.getTextContent();
         } catch (Exception e) {
             return "AgentScope 调用失败: " + e.getMessage();
@@ -111,6 +111,7 @@ public class DemoController {
     }
 
     @GetMapping("/health")
+    @Operation(summary = "服务健康检查", description = "检查框架对比测试服务是否正常运行。")
     public Map<String, String> health() {
         return Map.of("status", "UP", "timestamp", java.time.Instant.now().toString());
     }
