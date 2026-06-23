@@ -3,9 +3,6 @@ package com.demo.saa.rag.service;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeCloudStore;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentRetrievalAdvisor;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentRetriever;
-import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentTransformerOptions;
-import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
-import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentTransformer;
 import com.demo.saa.rag.config.RagConfig;
 import com.demo.saa.rag.config.RagProperties;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -38,7 +35,6 @@ public class CustomerServiceRagService {
 
     private final DashScopeDocumentRetriever retriever;
     private final DashScopeCloudStore cloudStore;
-    private final DashScopeApi dashScopeApi;
     private final ChatModel chatModel;
     private final RagProperties properties;
     private final RagConfig ragConfig;
@@ -59,14 +55,12 @@ public class CustomerServiceRagService {
     public CustomerServiceRagService(
             DashScopeDocumentRetriever retriever,
             DashScopeCloudStore cloudStore,
-            DashScopeApi dashScopeApi,
             ChatModel chatModel,
             RagProperties properties,
             RagConfig ragConfig,
             Cache<String, List<Document>> retrievalCache) {
         this.retriever = retriever;
         this.cloudStore = cloudStore;
-        this.dashScopeApi = dashScopeApi;
         this.chatModel = chatModel;
         this.properties = properties;
         this.ragConfig = ragConfig;
@@ -245,41 +239,17 @@ public class CustomerServiceRagService {
             throw new IllegalStateException("DashScope Pipeline 未就绪，无法上传文档。"
                     + "请在 DashScope 控制台创建 Pipeline: https://dashscope.console.aliyun.com/rag");
         }
+        // 添加元数据并入库，切片+向量化由 DashScopeCloudStore 内置的 DashScopeStoreOptions 自动完成
         Document doc = new Document(text, Map.of(
                 "title", title, "category", category,
                 "upload_time", String.valueOf(System.currentTimeMillis())));
-
-        // 标准粒度
         cloudStore.add(List.of(doc));
 
-        // 细粒度
-        Document fineDoc = new Document(text, Map.of(
-                "title", title + "(fine)", "category", category, "granularity", "fine"));
-        DashScopeDocumentTransformer fineTransformer = new DashScopeDocumentTransformer(dashScopeApi,
-                DashScopeDocumentTransformerOptions.builder()
-                        .withChunkSize(properties.getFineChunkSize())
-                        .withOverlapSize(properties.getOverlapSize())
-                        .withLanguage("zh").build());
-        cloudStore.add(fineTransformer.apply(List.of(fineDoc)));
-
-        // 粗粒度
-        Document coarseDoc = new Document(text, Map.of(
-                "title", title + "(coarse)", "category", category, "granularity", "coarse"));
-        DashScopeDocumentTransformer coarseTransformer = new DashScopeDocumentTransformer(dashScopeApi,
-                DashScopeDocumentTransformerOptions.builder()
-                        .withChunkSize(properties.getCoarseChunkSize())
-                        .withOverlapSize(properties.getOverlapSize())
-                        .withLanguage("zh").build());
-        cloudStore.add(coarseTransformer.apply(List.of(coarseDoc)));
-
-        String docId = doc.getId();
-        DocumentMeta meta = new DocumentMeta(docId, title, category, text.length(),
-                1 + fineTransformer.apply(List.of(fineDoc)).size()
-                        + coarseTransformer.apply(List.of(coarseDoc)).size());
-        documentMetaMap.put(docId, meta);
+        DocumentMeta meta = new DocumentMeta(doc.getId(), title, category, text.length(), 1);
+        documentMetaMap.put(doc.getId(), meta);
         documentCount.incrementAndGet();
 
-        log.info("Document indexed | id: {} | title: {}", docId, title);
+        log.info("Document indexed | id: {} | title: {} | chars: {}", doc.getId(), title, text.length());
         return meta;
     }
 
