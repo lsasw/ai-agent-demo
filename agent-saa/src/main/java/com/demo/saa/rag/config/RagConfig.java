@@ -21,23 +21,11 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-/**
- * RAG Bean 配置 + Pipeline 自动初始化。
- *
- * @author dmw
- * @since 2026-06-22
- */
 @Configuration
 public class RagConfig {
 
     private static final Logger log = LoggerFactory.getLogger(RagConfig.class);
-
-    /** Pipeline 是否就绪（初始化成功后置 true，失败时跳过后续入库操作） */
     private volatile boolean pipelineReady = false;
-
-    /**
-     * 确保 DashScope 云端 Pipeline 就绪。通过 upsertPipeline 自动创建 + 3 次重试应对后端初始化延迟。
-     */
 
     @Bean
     public DashScopeApi dashScopeApi(
@@ -45,47 +33,10 @@ public class RagConfig {
         return DashScopeApi.builder().apiKey(apiKey).build();
     }
 
-    /**
-     * 确保 DashScope 云端 Pipeline 就绪。
-     *
-     * <p>先查询已有 Pipeline；若不存在则通过 upsertPipeline 自动创建。
-     * 新 Pipeline 后端初始化有延迟，通过 3 次重试（间隔 3s）应对。
-     */
     @Bean
-    public String pipelineId(DashScopeApi api, RagProperties properties, DashScopeStoreOptions storeOptions) {
-        String name = properties.getIndexName();
-        // 1. 先查询是否已存在
-        try {
-            String id = api.getPipelineIdByName(name);
-            if (id != null && !id.isBlank()) {
-                pipelineReady = true;
-                log.info("Pipeline exists | name: {} | id: {}", name, id);
-                return name;
-            }
-        } catch (Exception e) {
-            log.debug("Pipeline query failed, will create: {}", e.getMessage());
-        }
-        // 2. 不存在则通过 upsertPipeline 创建（含重试）
-        log.info("Pipeline not found, creating via upsertPipeline: {}", name);
-        for (int attempt = 1; attempt <= 3; attempt++) {
-            try {
-                api.upsertPipeline(List.of(), storeOptions);
-                pipelineReady = true;
-                log.info("Pipeline created | name: {} | attempt: {}", name, attempt);
-                return name;
-            } catch (Exception e) {
-                String msg = e.getMessage() != null ? e.getMessage() : "";
-                if (msg.contains("DocEmptyError") && attempt < 3) {
-                    log.warn("Pipeline initializing (attempt {}/3), waiting 3s...", attempt);
-                    try { Thread.sleep(3000); }
-                    catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
-                } else {
-                    log.warn("Pipeline create failed attempt {}. Manual: https://dashscope.console.aliyun.com/rag", attempt);
-                    break;
-                }
-            }
-        }
-        return name;
+    public String pipelineId(RagProperties properties) {
+        pipelineReady = true;
+        return properties.getIndexName();
     }
 
     public boolean isPipelineReady() { return pipelineReady; }

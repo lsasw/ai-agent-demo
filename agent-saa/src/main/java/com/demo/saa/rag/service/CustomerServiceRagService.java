@@ -239,10 +239,13 @@ public class CustomerServiceRagService {
             throw new IllegalStateException("DashScope Pipeline 未就绪，无法上传文档。"
                     + "请在 DashScope 控制台创建 Pipeline: https://dashscope.console.aliyun.com/rag");
         }
-        // 添加元数据并入库，切片+向量化由 DashScopeCloudStore 内置的 DashScopeStoreOptions 自动完成
+        // 构造带元数据的 Document
         Document doc = new Document(text, Map.of(
                 "title", title, "category", category,
                 "upload_time", String.valueOf(System.currentTimeMillis())));
+
+        // 直接调用 cloudStore.add(Document)，由 SDK 内部处理切片→向量化→入库全流程
+        // cloudStore.add 内部调用 DashScopeApi.upsertPipeline
         cloudStore.add(List.of(doc));
 
         DocumentMeta meta = new DocumentMeta(doc.getId(), title, category, text.length(), 1);
