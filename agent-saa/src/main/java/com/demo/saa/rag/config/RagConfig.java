@@ -58,12 +58,8 @@ public class RagConfig {
     }
 
     @Bean
-    public DashScopeStoreOptions storeOptions(RagProperties properties,
-            DashScopeDocumentTransformerOptions transformerOptions, DashScopeEmbeddingOptions embeddingOptions) {
-        DashScopeStoreOptions options = new DashScopeStoreOptions(properties.getIndexName());
-        options.setTransformerOptions(transformerOptions);
-        options.setEmbeddingOptions(embeddingOptions);
-        return options;
+    public DashScopeStoreOptions storeOptions(RagProperties properties) {
+        return new DashScopeStoreOptions(properties.getIndexName());
     }
 
     @Bean

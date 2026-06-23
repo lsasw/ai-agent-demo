@@ -1,8 +1,11 @@
 package com.demo.saa.rag.service;
 
+import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeCloudStore;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentRetrievalAdvisor;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentRetriever;
+import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentCloudReader;
+import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentCloudReaderOptions;
 import com.demo.saa.rag.config.RagConfig;
 import com.demo.saa.rag.config.RagProperties;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -14,6 +17,9 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,6 +41,7 @@ public class CustomerServiceRagService {
 
     private final DashScopeDocumentRetriever retriever;
     private final DashScopeCloudStore cloudStore;
+    private final DashScopeApi dashScopeApi;
     private final ChatModel chatModel;
     private final RagProperties properties;
     private final RagConfig ragConfig;
@@ -55,12 +62,14 @@ public class CustomerServiceRagService {
     public CustomerServiceRagService(
             DashScopeDocumentRetriever retriever,
             DashScopeCloudStore cloudStore,
+            DashScopeApi dashScopeApi,
             ChatModel chatModel,
             RagProperties properties,
             RagConfig ragConfig,
             Cache<String, List<Document>> retrievalCache) {
         this.retriever = retriever;
         this.cloudStore = cloudStore;
+        this.dashScopeApi = dashScopeApi;
         this.chatModel = chatModel;
         this.properties = properties;
         this.ragConfig = ragConfig;
@@ -236,24 +245,38 @@ public class CustomerServiceRagService {
      */
     public DocumentMeta uploadDocument(String text, String title, String category) {
         if (!ragConfig.isPipelineReady()) {
-            throw new IllegalStateException("DashScope Pipeline 未就绪，无法上传文档。"
-                    + "请在 DashScope 控制台创建 Pipeline: https://dashscope.console.aliyun.com/rag");
+            throw new IllegalStateException("DashScope Pipeline 未就绪，无法上传文档。");
         }
-        // 构造带元数据的 Document
-        Document doc = new Document(text, Map.of(
-                "title", title, "category", category,
-                "upload_time", String.valueOf(System.currentTimeMillis())));
+        try {
+            // 写入临时文件
+            Path tempFile = Files.createTempFile("rag-doc-", ".txt");
+            Files.writeString(tempFile, text);
 
-        // 直接调用 cloudStore.add(Document)，由 SDK 内部处理切片→向量化→入库全流程
-        // cloudStore.add 内部调用 DashScopeApi.upsertPipeline
-        cloudStore.add(List.of(doc));
+            // 1. 用 DashScopeDocumentCloudReader 加载并拆分文档
+            DashScopeDocumentCloudReader reader = new DashScopeDocumentCloudReader(
+                    tempFile.toAbsolutePath().toString(),
+                    dashScopeApi,
+                    /* options= */ null);
+            List<Document> documentList = reader.get();
+            log.info("{} documents loaded and split for: {}", documentList.size(), title);
 
-        DocumentMeta meta = new DocumentMeta(doc.getId(), title, category, text.length(), 1);
-        documentMetaMap.put(doc.getId(), meta);
-        documentCount.incrementAndGet();
+            // 2. 用只含 indexName 的 DashScopeCloudStore 入库
+            cloudStore.add(documentList);
+            log.info("{} documents added to DashScope cloud store for: {}", documentList.size(), title);
 
-        log.info("Document indexed | id: {} | title: {} | chars: {}", doc.getId(), title, text.length());
-        return meta;
+            // 清理临时文件
+            Files.deleteIfExists(tempFile);
+
+            DocumentMeta meta = new DocumentMeta(
+                    UUID.randomUUID().toString(), title, category, text.length(),
+                    documentList.size());
+            documentMetaMap.put(meta.getId(), meta);
+            documentCount.incrementAndGet();
+
+            return meta;
+        } catch (IOException e) {
+            throw new RuntimeException("Document upload failed: " + title, e);
+        }
     }
 
     /**
