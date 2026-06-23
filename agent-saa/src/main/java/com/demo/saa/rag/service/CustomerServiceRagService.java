@@ -2,6 +2,7 @@ package com.demo.saa.rag.service;
 
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeCloudStore;
+import com.alibaba.cloud.ai.dashscope.rag.DashScopeStoreOptions;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentRetrievalAdvisor;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentRetriever;
 import com.alibaba.cloud.ai.dashscope.rag.DashScopeDocumentCloudReader;
@@ -261,7 +262,10 @@ public class CustomerServiceRagService {
             log.info("{} documents loaded and split for: {}", documentList.size(), title);
 
             // 2. 用只含 indexName 的 DashScopeCloudStore 入库
-            cloudStore.add(documentList);
+            // 使用独立的 DashScopeCloudStore 实例（仅含 indexName），
+            // 避免 Spring Bean 上附带的 transformer/embedding 选项干扰 upsertPipeline
+            new DashScopeCloudStore(dashScopeApi, new DashScopeStoreOptions(
+                    properties.getIndexName())).add(documentList);
             log.info("{} documents added to DashScope cloud store for: {}", documentList.size(), title);
 
             // 清理临时文件
